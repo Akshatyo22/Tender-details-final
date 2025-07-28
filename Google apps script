@@ -1,0 +1,119 @@
+// The ID of the Google Sheet you want to write data to.( need to change it according to google sheet)
+const SHEET_ID = '1kxR9UxOpcB1UKhhiW8m5vK0pxEvu2MTiMAjW1JFK7Us';
+
+// Define the names for your sheets.
+const MAIN_SHEET_NAME = 'L1 data';
+const BIDDER_SHEET_NAME = 'All Bidders data';
+
+/**
+ * Handles HTTP POST requests to the web app.
+ * This function receives data from the Tampermonkey script and appends it to the Google Sheet.
+ */
+function doPost(e) {
+  try {
+    // Parse the JSON data sent from the Tampermonkey script
+    const data = JSON.parse(e.postData.contents);
+    const timestamp = new Date(); // Use the same timestamp for all related entries
+
+    // --- Part 1: Write Main Tender Data to the "L1 data" Sheet ---
+
+    const spreadsheet = SpreadsheetApp.openById(SHEET_ID);
+    let mainSheet = spreadsheet.getSheetByName(MAIN_SHEET_NAME);
+
+    // If the main sheet doesn't exist, create it.
+    if (!mainSheet) {
+      mainSheet = spreadsheet.insertSheet(MAIN_SHEET_NAME);
+    }
+    
+    // If the main sheet is empty, add a header row.
+    if (mainSheet.getLastRow() === 0) {
+      const header = [
+        'Beneficiary', 'Tender No', 'Tender ID', 'Tender Brief',
+        'City/State', 'Tender Value', 'Contract Value', 'Submission Date',
+        'Contract Date', 'Completion Date', 'Awarded Bidder', 'URL', 'Timestamp'
+      ];
+      mainSheet.appendRow(header);
+    }
+
+    // Create and append the main data row
+    const mainRow = [
+      data.beneficiary || '',
+      data.tenderNo || '',
+      data.tenderId || '',
+      data.tenderBrief || '',
+      data.cityState || '',
+      data.tenderValue || '',
+      data.contractValue || '',
+      data.submissionDate || '',
+      data.contractDate || '',
+      data.completionDate || '',
+      data.awardedBidder || '',
+      data.url || '',
+      timestamp
+    ];
+    mainSheet.appendRow(mainRow);
+
+
+    // --- Part 2: Write Bidder Data to the "All Bidders data" Sheet ---
+
+    // Check if there is bidder data to process
+    if (data.bidders && data.bidders.length > 0) {
+      let bidderSheet = spreadsheet.getSheetByName(BIDDER_SHEET_NAME);
+      
+      // If the bidder sheet doesn't exist, create it.
+      if (!bidderSheet) {
+          bidderSheet = spreadsheet.insertSheet(BIDDER_SHEET_NAME);
+      }
+      
+      // If the bidder sheet is empty, add a header row.
+      if (bidderSheet.getLastRow() === 0) {
+        const bidderHeader = [
+          'Tender ID', // For linking to the main sheet
+          'Beneficiary', // Added Beneficiary column
+          'Bidder Rank',
+          'Bidder Name',
+          'Bid Value',
+          'Technical Bid',
+          'Financial Bid',
+          'AOC',
+          'SR No',
+          'Bid Analytics Link',
+          'Timestamp'
+        ];
+        bidderSheet.appendRow(bidderHeader);
+      }
+
+      // Loop through each bidder and add them as a new row
+      data.bidders.forEach(bidder => {
+        const bidderRow = [
+          data.tenderId || '', // Link back to the main tender data
+          data.beneficiary || '', // Added the beneficiary name data
+          bidder.rank || '',
+          bidder.bidderName || '',
+          bidder.bidValue || '',
+          bidder.technicalBid || '',
+          bidder.financialBid || '',
+          bidder.aoc || '',
+          bidder.srNo || '',
+          bidder.bidAnalyticsLink || '',
+          timestamp
+        ];
+        bidderSheet.appendRow(bidderRow);
+      });
+    }
+
+    // --- Part 3: Return a Success Response ---
+
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'success', message: 'Main data and bidder data added.' }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (error) {
+    // Log the error for debugging
+    console.error(error);
+    // Return an error response if something goes wrong
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: 'error', message: error.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
